@@ -887,6 +887,16 @@ export function Session() {
         dialog.clear()
       },
     },
+    {
+      title: "Review changes",
+      value: "session.diff-review",
+      keybind: "review_open",
+      category: "Session",
+      onSelect: (dialog) => {
+        dialog.clear()
+        navigate({ type: "diff-review", sessionID: route.sessionID })
+      },
+    },
   ])
 
   const revertInfo = createMemo(() => session()?.revert)

@@ -792,6 +792,26 @@ export namespace Config {
       terminal_suspend: z.string().optional().default("ctrl+z").describe("Suspend terminal"),
       terminal_title_toggle: z.string().optional().default("none").describe("Toggle terminal title"),
       tips_toggle: z.string().optional().default("<leader>h").describe("Toggle tips on home screen"),
+      // Review mode
+      review_open: z.string().optional().default("none").describe("Open diff review"),
+      review_close: z.string().optional().default("escape").describe("Close diff review"),
+      review_submit: z.string().optional().default("ctrl+s").describe("Submit diff review"),
+      review_file_next: z.string().optional().default("j,down").describe("Next file in review"),
+      review_file_prev: z.string().optional().default("k,up").describe("Previous file in review"),
+      review_file_focus: z.string().optional().default("return,l").describe("Focus selected file in review"),
+      review_toggle_scope: z.string().optional().default("m").describe("Toggle between session and git diff"),
+      review_toggle_view: z.string().optional().default("v").describe("Cycle view mode in diff review"),
+      review_switch_side: z.string().optional().default("tab").describe("Switch side in split diff view"),
+      review_line_down: z.string().optional().default("j,down").describe("Move cursor down in diff"),
+      review_line_up: z.string().optional().default("k,up").describe("Move cursor up in diff"),
+      review_select_down: z.string().optional().default("shift+j,shift+down").describe("Extend selection down"),
+      review_select_up: z.string().optional().default("shift+k,shift+up").describe("Extend selection up"),
+      review_comment: z.string().optional().default("c").describe("Add/edit comment on line"),
+      review_comment_delete: z.string().optional().default("d").describe("Delete comment"),
+      review_comment_next: z.string().optional().default("none").describe("Jump to next comment"),
+      review_comment_prev: z.string().optional().default("none").describe("Jump to previous comment"),
+      review_scroll_down: z.string().optional().default("ctrl+d").describe("Scroll down in diff"),
+      review_scroll_up: z.string().optional().default("ctrl+u").describe("Scroll up in diff"),
     })
     .strict()
     .meta({

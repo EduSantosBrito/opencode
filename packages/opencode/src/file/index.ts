@@ -12,6 +12,7 @@ import { Instance } from "../project/instance"
 import { Ripgrep } from "./ripgrep"
 import fuzzysort from "fuzzysort"
 import { Global } from "../global"
+import { Snapshot } from "../snapshot"
 
 export namespace File {
   const log = Log.create({ service: "file" })
@@ -270,6 +271,215 @@ export namespace File {
       ...x,
       path: path.relative(Instance.directory, x.path),
     }))
+  }
+
+  type VcsType = "git" | "jj" | null
+
+  // Detect which VCS is available in the directory
+  async function detectVcs(directory: string): Promise<{ type: VcsType; root: string }> {
+    // Check for jj first (it can coexist with git but takes priority when present)
+    const jjRoot = (await $`jj root`.cwd(directory).quiet().nothrow().text()).trim()
+    if (jjRoot) return { type: "jj", root: jjRoot }
+
+    // Fall back to git
+    const gitRoot = (await $`git rev-parse --show-toplevel`.cwd(directory).quiet().nothrow().text()).trim()
+    if (gitRoot) return { type: "git", root: gitRoot }
+
+    return { type: null, root: "" }
+  }
+
+  // Quick file list for instant UI - returns files with empty lines (lazy loading)
+  export async function diff(): Promise<Snapshot.FileDiff[]> {
+    const directory = Instance.directory
+    const vcs = await detectVcs(directory)
+    if (!vcs.type) return []
+
+    if (vcs.type === "jj") return diffJj(vcs.root)
+    return diffGit(vcs.root)
+  }
+
+  async function diffGit(root: string): Promise<Snapshot.FileDiff[]> {
+    const result: Snapshot.FileDiff[] = []
+
+    // Get all uncommitted changes (working directory vs HEAD)
+    const diffOutput = await $`git diff --numstat HEAD`.cwd(root).quiet().nothrow().text()
+
+    const allLines = diffOutput.trim().split("\n").filter(Boolean)
+    const seen = new Set<string>()
+
+    for (const line of allLines) {
+      const [additions, deletions, filepath] = line.split("\t")
+      if (!filepath || seen.has(filepath)) continue
+      seen.add(filepath)
+
+      const isBinary = additions === "-" && deletions === "-"
+      if (isBinary) continue
+
+      result.push({
+        file: filepath,
+        additions: parseInt(additions) || 0,
+        deletions: parseInt(deletions) || 0,
+        firstChangedLine: 0,
+        lines: [],
+      })
+    }
+
+    // Get untracked files
+    const untrackedOutput = await $`git ls-files --others --exclude-standard`.cwd(root).quiet().nothrow().text()
+
+    if (untrackedOutput.trim()) {
+      for (const filepath of untrackedOutput.trim().split("\n")) {
+        if (seen.has(filepath)) continue
+        result.push({
+          file: filepath,
+          additions: 0,
+          deletions: 0,
+          firstChangedLine: 0,
+          lines: [],
+        })
+      }
+    }
+
+    return result
+  }
+
+  async function diffJj(root: string): Promise<Snapshot.FileDiff[]> {
+    const result: Snapshot.FileDiff[] = []
+
+    // jj diff --stat shows unstaged changes in working copy
+    // Format: "file.ts | 10 ++++---" or "file.ts | 3 +++"
+    const diffOutput = await $`jj diff --stat`.cwd(root).quiet().nothrow().text()
+
+    const lines = diffOutput.trim().split("\n").filter(Boolean)
+    // Last line is summary like "2 files changed, 10 insertions(+), 5 deletions(-)"
+    const fileLines = lines.slice(0, -1)
+
+    for (const line of fileLines) {
+      // Parse: "path/to/file.ts | 10 ++++---"
+      const match = line.match(/^\s*(.+?)\s*\|\s*(\d+)\s*([+-]*)/)
+      if (!match) continue
+
+      const filepath = match[1].trim()
+      const plusses = (match[3].match(/\+/g) || []).length
+      const minuses = (match[3].match(/-/g) || []).length
+      const total = parseInt(match[2]) || 0
+
+      // Approximate additions/deletions from the +/- symbols ratio
+      const ratio = plusses + minuses > 0 ? plusses / (plusses + minuses) : 0.5
+      const additions = Math.round(total * ratio)
+      const deletions = total - additions
+
+      result.push({
+        file: filepath,
+        additions,
+        deletions,
+        firstChangedLine: 0,
+        lines: [],
+      })
+    }
+
+    return result
+  }
+
+  // Compute diff lines for a single file (called on demand when file is selected)
+  export async function diffFile(filepath: string): Promise<Snapshot.FileDiff | null> {
+    const directory = Instance.directory
+    const vcs = await detectVcs(directory)
+    if (!vcs.type) return null
+
+    if (vcs.type === "jj") return diffFileJj(vcs.root, filepath)
+    return diffFileGit(vcs.root, filepath)
+  }
+
+  async function diffFileGit(root: string, filepath: string): Promise<Snapshot.FileDiff | null> {
+    // Check if file is tracked
+    const isTracked =
+      (await $`git ls-files ${filepath}`.cwd(root).quiet().nothrow().text()).trim() !== "" ||
+      (await $`git diff --name-only HEAD -- ${filepath}`.cwd(root).quiet().nothrow().text()).trim() !== ""
+
+    // Get stats from git diff --numstat HEAD for consistency with file list
+    const numstatOutput = await $`git diff --numstat HEAD -- ${filepath}`.cwd(root).quiet().nothrow().text()
+    let additions = 0
+    let deletions = 0
+    if (numstatOutput.trim()) {
+      const [add, del] = numstatOutput.trim().split("\t")
+      additions = add === "-" ? 0 : parseInt(add) || 0
+      deletions = del === "-" ? 0 : parseInt(del) || 0
+    }
+
+    const before = isTracked ? await $`git show HEAD:${filepath}`.cwd(root).quiet().nothrow().text() : ""
+    const after = await Bun.file(path.join(root, filepath))
+      .text()
+      .catch(() => "")
+
+    const { lines, firstChangedLine } = Snapshot.computeDiffLines(before, after)
+
+    // For untracked files, count from lines since numstat won't have data
+    if (!numstatOutput.trim() && lines.length > 0) {
+      for (const line of lines) {
+        if (line.type === "added") additions++
+        if (line.type === "removed") deletions++
+      }
+    }
+
+    return {
+      file: filepath,
+      additions,
+      deletions,
+      firstChangedLine,
+      lines,
+      before,
+      after,
+    }
+  }
+
+  async function diffFileJj(root: string, filepath: string): Promise<Snapshot.FileDiff | null> {
+    // Get stats from jj diff --stat for consistency with file list
+    const statOutput = await $`jj diff --stat ${filepath}`.cwd(root).quiet().nothrow().text()
+    let additions = 0
+    let deletions = 0
+
+    // Parse jj diff --stat output: "file.ts | 10 ++++---"
+    const statLines = statOutput.trim().split("\n").filter(Boolean)
+    if (statLines.length > 0) {
+      const match = statLines[0].match(/^\s*(.+?)\s*\|\s*(\d+)\s*([+-]*)/)
+      if (match) {
+        const plusses = (match[3].match(/\+/g) || []).length
+        const minuses = (match[3].match(/-/g) || []).length
+        const total = parseInt(match[2]) || 0
+        const ratio = plusses + minuses > 0 ? plusses / (plusses + minuses) : 0.5
+        additions = Math.round(total * ratio)
+        deletions = total - additions
+      }
+    }
+
+    // Get the file content from parent revision (before changes)
+    // jj file show shows file content at a specific revision, @- is parent of working copy
+    const before = await $`jj file show ${filepath} -r @-`.cwd(root).quiet().nothrow().text()
+
+    const after = await Bun.file(path.join(root, filepath))
+      .text()
+      .catch(() => "")
+
+    const { lines, firstChangedLine } = Snapshot.computeDiffLines(before, after)
+
+    // If no stat data, count from lines
+    if (!statOutput.trim() && lines.length > 0) {
+      for (const line of lines) {
+        if (line.type === "added") additions++
+        if (line.type === "removed") deletions++
+      }
+    }
+
+    return {
+      file: filepath,
+      additions,
+      deletions,
+      firstChangedLine,
+      lines,
+      before,
+      after,
+    }
   }
 
   export async function read(file: string): Promise<Content> {

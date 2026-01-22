@@ -295,7 +295,7 @@ export namespace Session {
   }
 
   export const diff = fn(Identifier.schema("session"), async (sessionID) => {
-    const diffs = await Storage.read<Snapshot.FileDiff[]>(["session_diff", sessionID])
+    const diffs = await Storage.read<Snapshot.FileDiff[]>(["session_diff", sessionID]).catch(() => [])
     return diffs ?? []
   })
 

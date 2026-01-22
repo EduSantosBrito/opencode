@@ -1,6 +1,7 @@
 import { $ } from "bun"
 import path from "path"
 import fs from "fs/promises"
+import { diffLines } from "diff"
 import { Log } from "../util/log"
 import { Global } from "../global"
 import z from "zod"
@@ -181,13 +182,27 @@ export namespace Snapshot {
     return result.text().trim()
   }
 
+  export const DiffLine = z
+    .object({
+      type: z.enum(["context", "added", "removed"]),
+      content: z.string(),
+      oldNum: z.number().nullable(),
+      newNum: z.number().nullable(),
+    })
+    .meta({
+      ref: "DiffLine",
+    })
+  export type DiffLine = z.infer<typeof DiffLine>
+
   export const FileDiff = z
     .object({
       file: z.string(),
-      before: z.string(),
-      after: z.string(),
       additions: z.number(),
       deletions: z.number(),
+      firstChangedLine: z.number(),
+      lines: z.array(DiffLine),
+      before: z.string().optional(),
+      after: z.string().optional(),
     })
     .meta({
       ref: "FileDiff",
@@ -218,15 +233,52 @@ export namespace Snapshot {
             .text()
       const added = isBinaryFile ? 0 : parseInt(additions)
       const deleted = isBinaryFile ? 0 : parseInt(deletions)
+      const { lines, firstChangedLine } = computeDiffLines(before, after)
       result.push({
         file,
-        before,
-        after,
         additions: Number.isFinite(added) ? added : 0,
         deletions: Number.isFinite(deleted) ? deleted : 0,
+        firstChangedLine,
+        lines,
+        before,
+        after,
       })
     }
     return result
+  }
+
+  export function computeDiffLines(before: string, after: string): { lines: DiffLine[]; firstChangedLine: number } {
+    const changes = diffLines(before, after)
+    const result: DiffLine[] = []
+    let oldNum = 1
+    let newNum = 1
+    let firstChangedLine = 0
+    let foundFirst = false
+
+    for (const change of changes) {
+      const lines = change.value.split("\n")
+      if (lines.at(-1) === "") lines.pop()
+
+      for (const line of lines) {
+        if (change.added) {
+          if (!foundFirst) {
+            firstChangedLine = result.length
+            foundFirst = true
+          }
+          result.push({ type: "added", content: line, oldNum: null, newNum: newNum++ })
+        } else if (change.removed) {
+          if (!foundFirst) {
+            firstChangedLine = result.length
+            foundFirst = true
+          }
+          result.push({ type: "removed", content: line, oldNum: oldNum++, newNum: null })
+        } else {
+          result.push({ type: "context", content: line, oldNum: oldNum++, newNum: newNum++ })
+        }
+      }
+    }
+
+    return { lines: result, firstChangedLine }
   }
 
   function gitdir() {

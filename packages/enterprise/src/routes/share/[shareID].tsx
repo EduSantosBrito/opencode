@@ -108,8 +108,8 @@ const getData = query(async (shareID) => {
           Promise.all(
             item.data.map(async (diff) =>
               preloadMultiFileDiff<any>({
-                oldFile: { name: diff.file, contents: diff.before },
-                newFile: { name: diff.file, contents: diff.after },
+                oldFile: { name: diff.file, contents: diff.before ?? "" },
+                newFile: { name: diff.file, contents: diff.after ?? "" },
                 options: createDefaultOptions("unified"),
                 // annotations,
               }),
@@ -118,8 +118,8 @@ const getData = query(async (shareID) => {
           Promise.all(
             item.data.map(async (diff) =>
               preloadMultiFileDiff<any>({
-                oldFile: { name: diff.file, contents: diff.before },
-                newFile: { name: diff.file, contents: diff.after },
+                oldFile: { name: diff.file, contents: diff.before ?? "" },
+                newFile: { name: diff.file, contents: diff.after ?? "" },
                 options: createDefaultOptions("split"),
                 // annotations,
               }),

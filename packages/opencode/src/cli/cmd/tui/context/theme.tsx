@@ -822,7 +822,7 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     {
-      scope: ["string.escape", "string.regexp"],
+      scope: ["escape", "string.escape", "string.regexp"],
       style: {
         foreground: theme.syntaxKeyword,
       },
@@ -984,6 +984,12 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     // Additional common highlight groups
+    {
+      scope: ["string.special.key"],
+      style: {
+        foreground: theme.syntaxVariable,
+      },
+    },
     {
       scope: ["string.special", "string.special.url"],
       style: {

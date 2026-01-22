@@ -7,7 +7,7 @@ import z from "zod"
 import * as path from "path"
 import { Tool } from "./tool"
 import { LSP } from "../lsp"
-import { createTwoFilesPatch, diffLines } from "diff"
+import { createTwoFilesPatch } from "diff"
 import DESCRIPTION from "./edit.txt"
 import { File } from "../file"
 import { Bus } from "../bus"
@@ -99,16 +99,19 @@ export const EditTool = Tool.define("edit", {
       FileTime.read(ctx.sessionID, filePath)
     })
 
+    const { lines, firstChangedLine } = Snapshot.computeDiffLines(contentOld, contentNew)
+    let additions = 0
+    let deletions = 0
+    for (const line of lines) {
+      if (line.type === "added") additions++
+      if (line.type === "removed") deletions++
+    }
     const filediff: Snapshot.FileDiff = {
       file: filePath,
-      before: contentOld,
-      after: contentNew,
-      additions: 0,
-      deletions: 0,
-    }
-    for (const change of diffLines(contentOld, contentNew)) {
-      if (change.added) filediff.additions += change.count || 0
-      if (change.removed) filediff.deletions += change.count || 0
+      additions,
+      deletions,
+      firstChangedLine,
+      lines,
     }
 
     ctx.metadata({

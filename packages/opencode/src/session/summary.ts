@@ -116,7 +116,22 @@ export namespace SessionSummary {
       messageID: Identifier.schema("message").optional(),
     }),
     async (input) => {
-      return Storage.read<Snapshot.FileDiff[]>(["session_diff", input.sessionID]).catch(() => [])
+      const diffs = await Storage.read<Snapshot.FileDiff[]>(["session_diff", input.sessionID]).catch(() => [])
+      // Migrate old format (before/after) to new format (lines) if needed
+      return diffs.map((d) => {
+        if (d.lines) return d
+        // Old format - convert to new format
+        const before = (d as unknown as { before?: string }).before ?? ""
+        const after = (d as unknown as { after?: string }).after ?? ""
+        const { lines, firstChangedLine } = Snapshot.computeDiffLines(before, after)
+        return {
+          file: d.file,
+          additions: d.additions,
+          deletions: d.deletions,
+          firstChangedLine: d.firstChangedLine ?? firstChangedLine,
+          lines,
+        }
+      })
     },
   )
 

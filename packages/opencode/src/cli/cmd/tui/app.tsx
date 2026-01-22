@@ -1,6 +1,18 @@
-import { render, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { render, useKeyboard, useRenderer, useTerminalDimensions, extend } from "@opentui/solid"
+import { SpinnerRenderable } from "opentui-spinner"
+
+// Register spinner component (cast to any for local dev with bun link)
+extend({ spinner: SpinnerRenderable as any })
 import { Clipboard } from "@tui/util/clipboard"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, getTreeSitterClient } from "@opentui/core"
+
+// Pre-load common parsers to avoid delay on first syntax highlight
+const preloadParsers = async () => {
+  const client = getTreeSitterClient()
+  const parsers = ["typescript", "javascript", "json", "markdown"]
+  await Promise.all(parsers.map((p) => client.preloadParser(p)))
+}
+preloadParsers()
 import { RouteProvider, useRoute } from "@tui/context/route"
 import { Switch, Match, createEffect, untrack, ErrorBoundary, createSignal, onMount, batch, Show, on } from "solid-js"
 import { Installation } from "@/installation"
@@ -22,6 +34,7 @@ import { KeybindProvider } from "@tui/context/keybind"
 import { ThemeProvider, useTheme } from "@tui/context/theme"
 import { Home } from "@tui/routes/home"
 import { Session } from "@tui/routes/session"
+import { DiffReview } from "@tui/routes/diff-review"
 import { PromptHistoryProvider } from "./component/prompt/history"
 import { FrecencyProvider } from "./component/prompt/frecency"
 import { PromptStashProvider } from "./component/prompt/stash"
@@ -672,6 +685,9 @@ function App() {
         </Match>
         <Match when={route.data.type === "session"}>
           <Session />
+        </Match>
+        <Match when={route.data.type === "diff-review"}>
+          <DiffReview />
         </Match>
       </Switch>
     </box>
