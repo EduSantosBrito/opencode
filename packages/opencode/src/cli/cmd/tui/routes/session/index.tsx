@@ -892,6 +892,9 @@ export function Session() {
       value: "session.diff-review",
       keybind: "review_open",
       category: "Session",
+      slash: {
+        name: "diff-review",
+      },
       onSelect: (dialog) => {
         dialog.clear()
         navigate({ type: "diff-review", sessionID: route.sessionID })

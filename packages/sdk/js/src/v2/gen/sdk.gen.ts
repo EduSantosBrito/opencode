@@ -23,6 +23,8 @@ import type {
   EventTuiSessionSelect,
   EventTuiToastShow,
   ExperimentalResourceListResponses,
+  FileDiffFileResponses,
+  FileDiffResponses,
   FileListResponses,
   FilePartInput,
   FilePartSource,
@@ -2230,6 +2232,55 @@ export class File extends HeyApiClient {
     const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }])
     return (options?.client ?? this.client).get<FileStatusResponses, unknown, ThrowOnError>({
       url: "/file/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get git diff list
+   *
+   * Get list of files with uncommitted changes. Returns file stats without diff lines (for lazy loading).
+   */
+  public diff<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "query", key: "directory" }] }])
+    return (options?.client ?? this.client).get<FileDiffResponses, unknown, ThrowOnError>({
+      url: "/file/diff",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get git diff for single file
+   *
+   * Get full diff with lines for a specific file.
+   */
+  public diffFile<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      filepath: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "filepath" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<FileDiffFileResponses, unknown, ThrowOnError>({
+      url: "/file/diff-file",
       ...options,
       ...params,
     })

@@ -90,12 +90,21 @@ export type EventFileEdited = {
   }
 }
 
+export type DiffLine = {
+  type: "context" | "added" | "removed"
+  content: string
+  oldNum: number | null
+  newNum: number | null
+}
+
 export type FileDiff = {
   file: string
-  before: string
-  after: string
   additions: number
   deletions: number
+  firstChangedLine: number
+  lines: Array<DiffLine>
+  before?: string
+  after?: string
 }
 
 export type UserMessage = {
@@ -1304,6 +1313,82 @@ export type KeybindsConfig = {
    * Toggle tips on home screen
    */
   tips_toggle?: string
+  /**
+   * Open diff review
+   */
+  review_open?: string
+  /**
+   * Close diff review
+   */
+  review_close?: string
+  /**
+   * Submit diff review
+   */
+  review_submit?: string
+  /**
+   * Next file in review
+   */
+  review_file_next?: string
+  /**
+   * Previous file in review
+   */
+  review_file_prev?: string
+  /**
+   * Focus selected file in review
+   */
+  review_file_focus?: string
+  /**
+   * Toggle between session and git diff
+   */
+  review_toggle_scope?: string
+  /**
+   * Cycle view mode in diff review
+   */
+  review_toggle_view?: string
+  /**
+   * Switch side in split diff view
+   */
+  review_switch_side?: string
+  /**
+   * Move cursor down in diff
+   */
+  review_line_down?: string
+  /**
+   * Move cursor up in diff
+   */
+  review_line_up?: string
+  /**
+   * Extend selection down
+   */
+  review_select_down?: string
+  /**
+   * Extend selection up
+   */
+  review_select_up?: string
+  /**
+   * Add/edit comment on line
+   */
+  review_comment?: string
+  /**
+   * Delete comment
+   */
+  review_comment_delete?: string
+  /**
+   * Jump to next comment
+   */
+  review_comment_next?: string
+  /**
+   * Jump to previous comment
+   */
+  review_comment_prev?: string
+  /**
+   * Scroll down in diff
+   */
+  review_scroll_down?: string
+  /**
+   * Scroll up in diff
+   */
+  review_scroll_up?: string
 }
 
 /**
@@ -4129,6 +4214,46 @@ export type FileStatusResponses = {
 }
 
 export type FileStatusResponse = FileStatusResponses[keyof FileStatusResponses]
+
+export type FileDiffData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+  }
+  url: "/file/diff"
+}
+
+export type FileDiffResponses = {
+  /**
+   * File diffs (without lines - use file.diffFile for full diff)
+   */
+  200: Array<FileDiff>
+}
+
+export type FileDiffResponse = FileDiffResponses[keyof FileDiffResponses]
+
+export type FileDiffFileData = {
+  body?: never
+  path?: never
+  query: {
+    directory?: string
+    /**
+     * File path relative to git root
+     */
+    filepath: string
+  }
+  url: "/file/diff-file"
+}
+
+export type FileDiffFileResponses = {
+  /**
+   * File diff with lines
+   */
+  200: FileDiff | null
+}
+
+export type FileDiffFileResponse = FileDiffFileResponses[keyof FileDiffFileResponses]
 
 export type McpStatusData = {
   body?: never
